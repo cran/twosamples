@@ -1,38 +1,30 @@
 #include <Rcpp.h>
 using namespace Rcpp;
 
-//' Order in C++
+//' Order function in C++ using the STL
 //'
 //' Simply finds the order of a vector in c++. Mostly for internals.
 //' @param x numeric vector
 //' @return same length vector of integers representing order of input vector
 //' @examples
 //' vec = c(1,4,3,2)
-//' order_cpp(vec)
+//' order_stl(vec)
 //' @export
 // [[Rcpp::export]]
-IntegerVector order_cpp(NumericVector x) {
-  // Sample Size
+IntegerVector order_stl(NumericVector x) {
   int n = x.size();
-  // Initializing outcome
-  IntegerVector ord(n);
-  // Bubble sort on vector x
-  for (int i=0;i<n;i++){
-    for (int j=0;j<n;j++) {
-      if (x[i]>x[j]) {
-        // Actually sorting 'order'
-        ord[i] += 1;
-      }
-      if (x[i]==x[j]) {
-        if(i>j) {
-          // Dealing with ties consistently
-          ord[i] +=1;
-        }
-      }
-    }
+  std::vector<std::pair<double, int> > paired(n);
+  for (int i = 0; i < n; i++) {
+    paired[i] = std::make_pair(x[i], i);
   }
-  return ord;
+  std::sort(paired.begin(), paired.end());
+  IntegerVector indices(n);
+  for (int i = 0; i < n; i++) {
+    indices[i] = paired[i].second;
+  }
+  return indices;
 }
+
 
 //' @describeIn ks_test Kolmogorov-Smirnov test statistic
 //' @export
@@ -59,15 +51,12 @@ double ks_stat(NumericVector a,NumericVector b, double power=1.0) {
     }
   }
   // Finding proper order
-  IntegerVector order = order_cpp(d);
-  // Initializing sorted cdf & sample vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
-  // Filling sorted cdf & sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  IntegerVector order = order_stl(d);
+
+  // Sorted cdf & sample vectors
+  d = d[order];
+  e = e[order];
+  f = f[order];
 
   // Initializing CDF heights & distances
   double height=0.0;
@@ -80,10 +69,10 @@ double ks_stat(NumericVector a,NumericVector b, double power=1.0) {
   // Stops at n-1 (b/c at n both are equal)
   for (int i=0;i+1<n;i++){
     // Current height of CDFs
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     // IF the next value is different
-    if (dd[i]<dd[i+1]){
+    if (d[i]<d[i+1]){
       // distance between cdfs
       height = ecur-fcur;
       // ensuring positivity of distance
@@ -126,15 +115,12 @@ double kuiper_stat(NumericVector a,NumericVector b, double power=1.0) {
     }
   }
   // Finding proper order
-  IntegerVector order = order_cpp(d);
-  // Initializing sorted cdf & sample vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
+  IntegerVector order = order_stl(d);
+
   // Filling sorted cdf & sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  d = d[order];
+  e = e[order];
+  f = f[order];
 
   // Initializing CDF heights & distances
   double height=0.0;
@@ -148,10 +134,10 @@ double kuiper_stat(NumericVector a,NumericVector b, double power=1.0) {
   // Stops at n-1 (b/c at n both are equal)
   for (int i=0;i+1<n;i++){
     // Current height of CDFs
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     // IF the next value is different
-    if (dd[i]<dd[i+1]){
+    if (d[i]<d[i+1]){
       // distance between cdfs
       height = ecur-fcur;
       // If we should update:
@@ -198,15 +184,12 @@ double cvm_stat(NumericVector a,NumericVector b, double power=2.0) {
     }
   }
   // Finding proper order
-  IntegerVector order = order_cpp(d);
-  // Initializing sorted cdf & sample vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
+  IntegerVector order = order_stl(d);
+
   // Filling sorted cdf & sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  d = d[order];
+  e = e[order];
+  f = f[order];
 
   // Initializing CDF heights & distances
   double height=0.0;
@@ -219,10 +202,10 @@ double cvm_stat(NumericVector a,NumericVector b, double power=2.0) {
   // Stops at n-1 (b/c at n both are equal)
   for (int i=0;i+1<n;i++){
     // Current height of CDFs
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     // IF the next value is different
-    if (dd[i]<dd[i+1]){
+    if (d[i]<d[i+1]){
       // distance between cdfs
       height = ecur-fcur;
       // ensuring positivity of distance
@@ -262,15 +245,12 @@ double ad_stat(NumericVector a,NumericVector b, double power=2.0) {
     }
   }
   // Finding proper order
-  IntegerVector order = order_cpp(d);
-  // Initializing sorted vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
+  IntegerVector order = order_stl(d);
+
   // Filling sorted CDF & sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  d = d[order];
+  e = e[order];
+  f = f[order];
   // Initializing cdfs (each & joint), diff, outcome, sd
   double height = 0.0;
   double ecur = 0.0;
@@ -282,16 +262,16 @@ double ad_stat(NumericVector a,NumericVector b, double power=2.0) {
   // For loop doing actual work
   for (int i=0;i+1<n;i++){
     // Current height of each sample cdf, joint cdf
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     gcur += 1.0/n;
     // If next value is different
-    if (dd[i]<dd[i+1]){
+    if (d[i]<d[i+1]){
       // Difference between sample CDFs
       height = ecur-fcur;
       // Absolute value
       if (height < 0.0) {
-        height = -1.0*height;
+        height *= -1.0;
       }
       // SD of quantile
       sd = pow(n*gcur*(1-gcur),0.5);
@@ -333,15 +313,12 @@ double wass_stat(NumericVector a,NumericVector b,double power=1.0) {
     }
   }
   // Finding proper order
-  IntegerVector order = order_cpp(d);
-  // Initializing ordered CDF, sample vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
+  IntegerVector order = order_stl(d);
+
   // Filling ordered cdf, sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  d = d[order];
+  e = e[order];
+  f = f[order];
 
   // Initializing current distances
   double ecur = 0.0;
@@ -355,16 +332,16 @@ double wass_stat(NumericVector a,NumericVector b,double power=1.0) {
   // For loop doing the actual work
   for (int i=0;i+1<n;i++){
     // Height of each cdf at current point
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     // Distance between the two
     height = ecur-fcur;
     // Taking absolute Value
     if (height < 0.0) {
-      height = -1.0*height;
+      height *= -1.0;
     }
     // Width of current step
-    width = dd[i+1]-dd[i];
+    width = d[i+1]-d[i];
     // Updating outcome
     out += (pow(height,power)*width);
   }
@@ -396,15 +373,12 @@ double dts_stat(NumericVector a,NumericVector b,double power=1.0) {
     }
   }
   // Finding order for vectors
-  IntegerVector order = order_cpp(d);
-  // Initializing ordered CDF, sample vectors
-  NumericVector dd(n);
-  NumericVector ee(n);
-  NumericVector ff(n);
+  IntegerVector order = order_stl(d);
+
   // Filling ordered cdf, sample vectors
-  dd[order] = d;
-  ee[order] = e;
-  ff[order] = f;
+  d = d[order];
+  e = e[order];
+  f = f[order];
 
   // Initializing CDFs, width, outcome, sd, cdf diff
   double height = 0.0;
@@ -419,18 +393,18 @@ double dts_stat(NumericVector a,NumericVector b,double power=1.0) {
   for (int i=0;i+1<n;i++){
     // Height of joint cdf, individual cdfs at point
     gcur += 1/n;
-    ecur += ee[i];
-    fcur += ff[i];
+    ecur += e[i];
+    fcur += f[i];
     // Difference in CDFs
     height = ecur-fcur;
     // Absolute value of height
     if (height < 0.0) {
-      height = -1.0*height;
+      height *= -1.0;
     }
     // SD of joint CDF here
     sd = pow(n*gcur*(1-gcur),0.5);
     // Distance to next observation
-    width = dd[i+1]-dd[i];
+    width = d[i+1]-d[i];
     // If we won't divide by 0
     if (sd > 0.0) {
       // Update outcome by height/sd to the power times the width
