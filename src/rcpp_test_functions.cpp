@@ -3,12 +3,14 @@ using namespace Rcpp;
 
 //' Order function in C++ using the STL
 //'
-//' Simply finds the order of a vector in c++. Mostly for internals.
+//' Simply finds the order of a vector in c++. Purely for internal use, exposed to user because no reason not to.
+//' order_stl(x)+1 should equal base R order(x).
 //' @param x numeric vector
 //' @return same length vector of integers representing order of input vector
 //' @examples
 //' vec = c(1,4,3,2)
 //' order_stl(vec)
+//' order(vec)-1
 //' @export
 // [[Rcpp::export]]
 IntegerVector order_stl(NumericVector x) {
@@ -75,7 +77,7 @@ double ks_stat(NumericVector a,NumericVector b, double power=1.0) {
     if (d[i]<d[i+1]){
       // distance between cdfs
       height = ecur-fcur;
-      // ensuring positivity of distance
+      // simple absolute value of distance
       if (height < 0.0) {
         height *= -1.0;
       }
@@ -192,11 +194,13 @@ double cvm_stat(NumericVector a,NumericVector b, double power=2.0) {
   f = f[order];
 
   // Initializing CDF heights & distances
-  double height=0.0;
+  double height = 0.0;
   double ecur = 0.0;
   double fcur = 0.0;
   // Initializing outcome
-  double out=0.0;
+  double out = 0.0;
+  // Initializing duplicates counter
+  double dups = 1.0;
 
   // For loop doing actual work
   // Stops at n-1 (b/c at n both are equal)
@@ -208,12 +212,17 @@ double cvm_stat(NumericVector a,NumericVector b, double power=2.0) {
     if (d[i]<d[i+1]){
       // distance between cdfs
       height = ecur-fcur;
-      // ensuring positivity of distance
+      // simple absolute value of distance
       if (height < 0.0) {
         height *= -1.0;
       }
-      // Updating outcome
-      out += pow(height,power);
+      // Updating outcome (scaled by number of dups)
+      out += pow(height,power)*dups;
+      // reset dups counter
+      dups = 1.0;
+    } else if (d[i] == d[i+1]) {
+      // if duplicates, increment dups counter, do nothing else until non-dups
+      dups += 1.0;
     }
   }
   return out;
@@ -251,13 +260,14 @@ double ad_stat(NumericVector a,NumericVector b, double power=2.0) {
   d = d[order];
   e = e[order];
   f = f[order];
-  // Initializing cdfs (each & joint), diff, outcome, sd
+  // Initializing cdfs (each & joint), diff, outcome, sd, dup counter
   double height = 0.0;
   double ecur = 0.0;
   double fcur = 0.0;
   double gcur = 0.0;
   double sd = 1.0;
-  double out=0.0;
+  double out = 0.0;
+  double dups = 1.0;
 
   // For loop doing actual work
   for (int i=0;i+1<n;i++){
@@ -267,19 +277,21 @@ double ad_stat(NumericVector a,NumericVector b, double power=2.0) {
     gcur += 1.0/n;
     // If next value is different
     if (d[i]<d[i+1]){
-      // Difference between sample CDFs
+      // distance between cdfs
       height = ecur-fcur;
-      // Absolute value
+      // simple absolute value of distance
       if (height < 0.0) {
         height *= -1.0;
       }
-      // SD of quantile
-      sd = pow(n*gcur*(1-gcur),0.5);
-      // If we won't divide by 0
-      if (sd > 0) {
-        // update outcome by height to power divided by SD
-        out += pow(height/sd,power);
-      }
+      // SD of quantile: properly sqrt(2*gcur*(1-gcur)/n)
+      sd = pow(2*gcur*(1-gcur)/n,0.5);
+      // update outcome by height to power divided by SD, scaled by dups
+      out += pow(height/sd,power)*dups;
+      // reset dups counter
+      dups = 1.0;
+    } else if (d[i] == d[i+1]) {
+      // if duplicates -- increment duplicates counter.
+      dups += 1.0;
     }
   }
   return out;
@@ -334,9 +346,9 @@ double wass_stat(NumericVector a,NumericVector b,double power=1.0) {
     // Height of each cdf at current point
     ecur += e[i];
     fcur += f[i];
-    // Distance between the two
+    // distance between cdfs
     height = ecur-fcur;
-    // Taking absolute Value
+    // simple absolute value of distance
     if (height < 0.0) {
       height *= -1.0;
     }
@@ -395,21 +407,18 @@ double dts_stat(NumericVector a,NumericVector b,double power=1.0) {
     gcur += 1/n;
     ecur += e[i];
     fcur += f[i];
-    // Difference in CDFs
+    // distance between cdfs
     height = ecur-fcur;
-    // Absolute value of height
+    // simple absolute value of distance
     if (height < 0.0) {
       height *= -1.0;
     }
-    // SD of joint CDF here
-    sd = pow(n*gcur*(1-gcur),0.5);
+    // SD of joint CDF here: properly sqrt(2*gcur(1-gcur)/n)
+    sd = pow(2*gcur*(1-gcur)/n,0.5);
     // Distance to next observation
     width = d[i+1]-d[i];
-    // If we won't divide by 0
-    if (sd > 0.0) {
-      // Update outcome by height/sd to the power times the width
-      out += pow(height/sd,power)*width;
-    }
+    // Update outcome by height/sd to the power times the width
+    out += pow(height/sd,power)*width;
   }
   return out;
 }
