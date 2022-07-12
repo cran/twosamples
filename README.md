@@ -6,6 +6,9 @@
 <!-- badges: start -->
 
 [![R-CMD-check](https://github.com/cdowd/twosamples/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/cdowd/twosamples/actions/workflows/R-CMD-check.yaml)
+
+[![pages-build-deployment](https://github.com/cdowd/twosamples/actions/workflows/pages/pages-build-deployment/badge.svg?branch=main)](https://github.com/cdowd/twosamples/actions/workflows/pages/pages-build-deployment)
+
 <!-- badges: end -->
 
 The goal of twosamples is to allow easy two-sample testing using
@@ -17,6 +20,12 @@ free p-values for the samples coming from the same distribution.
 
 Details about the DTS statistic’s calculation, and performance can be
 found [here.](https://arxiv.org/abs/2007.01360)
+
+Example R code which works to build test functions can be found on
+github
+[here.](https://github.com/cdowd/twosamples/blob/main/R/Extras/test_stats_R.R)
+This code uses the release v1.0.0 algorithm for simplicity, and is in R
+rather than C++, so is substantially slower.
 
 ## Installation
 
@@ -35,6 +44,12 @@ library(remotes)
 install_github("cdowd/twosamples")
 ```
 
+#### System Requirements
+
+Going forward (v2.0.0 onwards), `twosamples` depends on having C++11
+installed. This is true of most R platforms and available for all of
+them. Compilation also requires headers from the `cpp11` package.
+
 ## Example
 
 In this example, we have 100 observations from two different Normal
@@ -43,14 +58,26 @@ distributions.
 ``` r
 library(twosamples)
 vec1 = rnorm(100)
-vec2 = rnorm(100,4)
-two_sample(vec1,vec2)
+vec2 = rnorm(100,0.5)
+output = two_sample(vec1,vec2)
+output
 #> Test Stat   P-Value 
-#>  87.60986   0.00025 
-#> attr(,"details")
+#>  9.695461  0.027500
+summary(output)
+#> DTS Test 
+#> =========================
+#> Test Statistic: 9.695461 
+#>        P-Value: 0.0275 *
+#> - - - - - - - - - - - - -
 #>      n1      n2 n.boots 
-#>     100     100    2000
+#>     100     100    2000 
+#> =========================
+#> Test stat rejection threshold for alpha = 0.05 is: 8.896328 
+#> Null rejected: samples are from different distributions
+plot(output)
 ```
+
+<img src="man/figures/example1-1.png" width="100%" />
 
 ## Metric Example Calculations
 
@@ -69,7 +96,13 @@ point.
 
 ### Kolmogorov-Smirnov Test
 
-The KS test finds the largest difference between the two ECDFs.
+The KS test finds the largest (vertical) difference between the two
+ECDFs. See `ks_test()`.
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 ks_stat_R = function(vec1,vec2,power=1) {
@@ -78,13 +111,13 @@ ks_stat_R = function(vec1,vec2,power=1) {
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   out = 0
   Ecur = 0
@@ -96,16 +129,29 @@ ks_stat_R = function(vec1,vec2,power=1) {
     if (d[i] != d[i+1]) height = abs(Fcur-Ecur)
     if (height > out) out = height
   }
-  out**power
+  out^power
 }
 ```
+
+</details>
+
+In the example plot below, the KS statistic is the height of the
+vertical black line.
+
+![](man/figures/ks.png "Example KS stat plot")
 
 ### Kuiper Test
 
 The Kuiper test is much the same as Kolmogorov-Smirnov, but it sums the
 largest difference in each direction. i.e. it cares about the difference
 between E(x)-F(x) and F(x)-E(x). In some sense this should be trading
-some power against mean-shifts for power against variance changes.
+some power against mean-shifts for power against variance changes. See
+`kuiper_test()`
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 kuiper_stat_R = function(vec1,vec2,power=1) { 
@@ -114,13 +160,13 @@ kuiper_stat_R = function(vec1,vec2,power=1) {
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   up = 0
   down = 0
@@ -134,9 +180,16 @@ kuiper_stat_R = function(vec1,vec2,power=1) {
     if (height > up) up = height
     if (height < down) down = height
   }
-  abs(down)**power + abs(up)**power
+  abs(down)^power + abs(up)^power
 }
 ```
+
+</details>
+
+In the example plot below, the Kuiper statistic is the sum of the
+heights of the vertical black lines.
+
+![](man/figures/kuiper.png "Example Kuiper stat plot")
 
 ### Cramer-Von Mises
 
@@ -144,6 +197,12 @@ The Cramer-Von Mises criterion further extends the intuition of Kuiper
 and KS. It is actually the full sum across every observation X of the
 difference \|F(x)-E(x)\|. This use of the full joint sample gives it a
 substantial power gain, particularly against higher moments shifting.
+See `cvm_test()`.
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 cvm_stat_R = function(vec1,vec2,power=2){
@@ -152,13 +211,13 @@ cvm_stat_R = function(vec1,vec2,power=2){
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   out = 0
   Ecur = 0
@@ -170,7 +229,7 @@ cvm_stat_R = function(vec1,vec2,power=2){
     Fcur = Fcur + f[i]
     height = abs(Fcur-Ecur)
     if (d[i] != d[i+1]) {
-      out = out + (height**power)*dups
+      out = out + (height^power)*dups
       dups = 1
     } else if (d[i] == d[i+1]) {
       dups = dups+1
@@ -180,6 +239,13 @@ cvm_stat_R = function(vec1,vec2,power=2){
 }
 ```
 
+</details>
+
+In the example plot below, the CVM statistic is the sum of the heights
+of the vertical black lines.
+
+![](man/figures/cvm.png "Example CVM stat plot")
+
 ### Anderson-Darling
 
 Anderson-Darling test starts from the Cramer-Von Mises logic. However,
@@ -187,7 +253,12 @@ they note that some points on the joint ECDF are higher variance than
 others. Because there is more noise in those observations, they should
 receive a lower weight. More than that, we can even describe the
 ‘optimal’ weighting function – it is closely related to the joint ECDF -
-G.
+G. See `ad_test()`
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 ad_stat_R = function(vec1,vec2,power=2){
@@ -196,13 +267,13 @@ ad_stat_R = function(vec1,vec2,power=2){
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   out = 0
   Ecur = 0
@@ -218,7 +289,7 @@ ad_stat_R = function(vec1,vec2,power=2){
     sd = (2*Gcur*(1-Gcur)/n)**0.5
     height = abs(Fcur-Ecur)
     if (d[i] != d[i+1]) {
-      out = out + ((height/sd)**power)*dups
+      out = out + ((height/sd)^power)*dups
       dups = 1
     } else if (d[i] == d[i+1]) {
       dups = dups+1
@@ -227,6 +298,20 @@ ad_stat_R = function(vec1,vec2,power=2){
   out
 }
 ```
+
+</details>
+
+In the example plot below, we see the variance of the joint ECDF over
+the range of the data. It clearly peaks in the middle of the joint
+sample.
+
+![](man/figures/var.png "Plot of Variance of joint ECDF")
+
+In the example plot below, the AD statistic is the weighted sum of the
+heights of the vertical lines, where weights are represented by the
+shading of the lines.
+
+![](man/figures/ad.png "Example AD stat plot")
 
 ### Wasserstein
 
@@ -239,7 +324,12 @@ on ordinal variables, with no sense of the distance between different
 rank order observations. Wasserstein (and below DTS) will require
 interval data. By utilizing the extra information encoded when
 information is from interval data, Wasserstein and DTS will improve on
-CVM and AD.
+CVM and AD. See `wass_test()`
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 wass_stat_R = function(vec1,vec2,power=1) {
@@ -248,13 +338,13 @@ wass_stat_R = function(vec1,vec2,power=1) {
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   out = 0
   Ecur = 0
@@ -266,18 +356,30 @@ wass_stat_R = function(vec1,vec2,power=1) {
     Fcur = Fcur + f[i]
     height = abs(Fcur-Ecur)
     width = d[i+1]-d[i]
-    out = out + (height**power)*width
+    out = out + (height^power)*width
   }
   out
 }
 ```
+
+</details>
+
+In the example plot below, the Wasserstein statistic is the shaded area
+between the ECDFs.
+
+![](man/figures/wass.png "Example Wasserstein stat plot")
 
 ### DTS/two_sample
 
 If the Wasserstein metric improves on CVM by moving it into the realm of
 interval data, then DTS improves on AD by doing the same. Alternately –
 DTS offers the same improvement over Wasserstein that AD offers over
-CVM.
+CVM. See `dts_test()` (AKA `two_sample()` ).
+
+<details>
+<summary>
+Demonstration R Code Calculating Test Statistic
+</summary>
 
 ``` r
 dts_stat_R = function(vec1,vec2,power=1) {
@@ -286,13 +388,13 @@ dts_stat_R = function(vec1,vec2,power=1) {
   n = n1+n2
   
   joint.sample = c(vec1,vec2)
-  ee = c(rep(1/n1,n1),rep(0,   n2))
-  ff = c(rep(0,   n1),rep(1/n2,n2))
+  e = c(rep(1/n1,n1),rep(0,   n2))
+  f = c(rep(0,   n1),rep(1/n2,n2))
   
   ind = order(joint.sample)
   d = joint.sample[ind]
-  e = ee[ind]
-  f = ff[ind]
+  e = e[ind]
+  f = f[ind]
   
   out = 0
   Ecur = 0
@@ -307,11 +409,19 @@ dts_stat_R = function(vec1,vec2,power=1) {
     sd = (2*Gcur*(1-Gcur)/n)**0.5
     height = abs(Fcur-Ecur)
     width = d[i+1]-d[i]
-    out = out + ((height/sd)**power)*width
+    out = out + ((height/sd)^power)*width
   }
   out
 }
 ```
+
+</details>
+
+In the example plot below, the DTS statistic is the shaded area between
+the ECDFs, weighted by the variances – shown by the color of the
+shading.
+
+![](man/figures/dts.png "Example Wasserstein stat plot")
 
 ## Permutation Testing
 
@@ -343,25 +453,3 @@ testing procedures in this package only rely on the statement that
 observations are i.i.d. The Independence is necessary for the
 exchangeability statement to hold. The identicality is necessary for the
 null hypothesis to be a sensible claim.
-
-## Internals
-
-There are two other functions made available by this package.
-
-``` r
-permutation_test_builder
-order_cpp
-```
-
-permutation_test_builder is a simple function which takes the C++ coded
-test statistics and builds permutation tests as outlined above. This
-function is primarily intended for internal use, but if others have any
-interest in it, it is there.
-
-order_stl is a simple C++ function which finds the order of a vector
-using the STL. This is the primary computational operation involved in
-each of the test statistics, and it is necessary in order to build the
-ECDFs. Because it is designed for internal C++ use, it returns 0 indexed
-values, and so is exactly 1 off from the Base R order function.
-Suggestions for improving this portion of my algorithm would be
-appreciated.
