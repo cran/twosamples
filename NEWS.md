@@ -1,3 +1,17 @@
+# version 2.0.1
+This update contains two minor bugfixes. 
+
+1. Some of the unit tests use random numbers, one of those unit tests looking at 
+the function `combine.twosamples` failed  to consider default (desired) behavior 
+for some possible values of those random numbers, and would occasionally fail. 
+This was a minor issue that would not negatively impact any users, _except_ that
+it would occasionally cause a CRAN check to fail, which could cause trouble. 
+This update aims to fix the _test_, leaving all actual functionality unchanged, 
+so that there should not be further CRAN check failures from this issue. 
+2. Removed "C++11" from "System Requirements" -- as per current CRAN guidelines. 
+The presence of C++11 as a requirement caused a note for R-CMD-Check in R4.3.0 and up.
+Currently, the lack of such a requirement does not affect compilation on any tested systems. 
+
 # version 2.0.0
 This is a large update. Three big changes:
 
@@ -8,7 +22,7 @@ This is a large update. Three big changes:
 Together, all this lead to many changes under the hood. As a consequence, `permutation_test_builder` is substantially different (and no longer exported), and `order_stl` no longer exists. 
 
 #### Speed
-Each run of a *_test function now only sorts the data one time. Denoting the joint sample size N and the number of bootstraps K, this update moves the code from $$O(KN\log(N))$$ to $$O(KN)+O(N \log(N))$$. 
+Each run of a *_test function now only sorts the data one time. Denoting the joint sample size N and the number of bootstraps K, this update moves the code from $O(KN\log(N))$ to $O(KN)+O(N \log(N))$. 
 
 - Particularly for large samples or large numbers of bootstraps, this means a substantial improvement in speed. 
 - This required reworking the underlying C++ `_stat` functions as well as the `permutation_test_builder`. 
